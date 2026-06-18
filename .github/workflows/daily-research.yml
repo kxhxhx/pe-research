@@ -1,0 +1,176 @@
+name: 🧪 电力电子×智能体 每日研究
+
+on:
+  schedule:
+    # 北京时间每天 09:00 = UTC 01:00（标准时间）
+    # 注意：中国使用 CST (UTC+8)，夏令时不需要调整
+    - cron: '0 1 * * *'
+  workflow_dispatch:  # 支持手动触发
+    inputs:
+      notify_only:
+        description: '仅推送不执行研究（用于测试通知）'
+        required: false
+        type: boolean
+        default: false
+
+env:
+  REPORT_DIR: daily_reports
+  DATE: ${{ github.event_name == 'schedule' && format('{0}', github.event.schedule) || 'manual' }}
+
+jobs:
+  research:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: 📥 检出仓库
+        uses: actions/checkout@v4
+
+      - name: 🟢 安装 Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: 📦 安装 OpenCode CLI
+        run: |
+          npm install -g opencode-ai
+
+      - name: 🔬 执行每日研究
+        id: research
+        if: ${{ !inputs.notify_only }}
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.LLM_API_KEY }}
+          # 如使用其他提供商，可添加：
+          # OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          # DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+        run: |
+          DATE=$(date +%Y-%m-%d)
+          echo "📅 研究日期: $DATE"
+          mkdir -p ${{ env.REPORT_DIR }}
+
+          # 研究提示词 - 使用 OpenCode run 模式
+          opencode run -p "
+你是一个电力电子与人工智能交叉领域的研究助理，请执行以下研究任务。
+
+## 搜索指令
+
+使用可用的 web 搜索工具，搜索以下内容：
+
+1. **学术论文**：搜索 arxiv.org / IEEE Xplore 上关于以下关键词的最新论文：
+   - 'power electronics + AI agent'
+   - 'power converter + LLM + autonomous'
+   - 'motor control + reinforcement learning + embedded'
+   - 'SiC/GaN inverter + AI optimization'
+   - 'LLM + SPICE + simulation'
+
+2. **GitHub 新项目**：搜索最近7天内更新的仓库：
+   - opencode plugin embedded
+   - power electronics AI agent
+   - inverter control firmware LLM
+
+3. **工具更新**：搜索以下工具的最新版本：
+   - oh-my-embedded (npm)
+   - Simulink Agentic Toolkit (MathWorks)
+   - MATLAB MCP Server
+   - kicad-mcp
+
+4. **厂商动态**：搜索 MathWorks/ST/TI/Infineon/ABB 关于 AI+电力电子的新发布
+
+5. **技术博客**：搜索最近有影响力的技术文章
+
+## 输出格式
+
+请严格按照以下 Markdown 格式输出到 /tmp/research_report.md：
+
+---
+
+# 📡 电力电子 × 智能体 每日研究
+
+**日期**: $(date +%Y年%m月%d日)
+
+---
+
+## 📄 今日新论文
+
+<!-- 如果没有新发现，写：今日无新增论文 -->
+
+### [论文标题]
+- **来源**: arXiv/IEEE/其他
+- **作者**: 
+- **核心贡献**: (1-2句话)
+- **链接**: URL
+- **标签**: `#功率变换器` `#多智能体` 等
+
+---
+
+## 🔧 新工具 / 更新
+
+### [工具名] v[版本]
+- **类型**: 新发布/版本更新
+- **核心变化**: 
+- **适用领域**: 
+- **链接**: 
+
+---
+
+## 🏭 工业应用案例
+
+<!-- 如无则写：今日未发现 -->
+
+---
+
+## 📰 技术动态
+
+---
+
+## ⭐ 今日重点关注
+
+<!-- 最有价值的1-2条，写推荐理由 -->
+
+---
+
+" \
+          2>&1 | tee /tmp/opencode_output.log
+
+          # 检查是否有报告生成
+          if [ -f /tmp/research_report.md ]; then
+            cp /tmp/research_report.md "${{ env.REPORT_DIR }}/${DATE}.md"
+            echo "✅ 报告已生成: ${{ env.REPORT_DIR }}/${DATE}.md"
+            echo "report_generated=true" >> $GITHUB_OUTPUT
+            echo "report_date=${DATE}" >> $GITHUB_OUTPUT
+          else
+            echo "⚠️ OpenCode 未生成报告文件，使用备用生成方式"
+            echo "report_generated=false" >> $GITHUB_OUTPUT
+            echo "report_date=${DATE}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: 🔄 备用报告生成（OpenCode 失败时）
+        if: steps.research.outputs.report_generated == 'false' && !inputs.notify_only
+        env:
+          LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+        run: |
+          DATE=$(date +%Y-%m-%d)
+          bash scripts/research_fallback.sh "${DATE}" "${LLM_API_KEY}"
+
+      - name: 📤 提交报告到仓库
+        if: ${{ !inputs.notify_only }}
+        run: |
+          DATE=$(date +%Y-%m-%d)
+          git config user.name "research-bot"
+          git config user.email "research-bot@users.noreply.github.com"
+          
+          if [ -f "${{ env.REPORT_DIR }}/${DATE}.md" ]; then
+            git add "${{ env.REPORT_DIR }}/${DATE}.md"
+            # 清理30天前的旧报告到archive
+            find ${{ env.REPORT_DIR }} -maxdepth 1 -name '*.md' -type f -mtime +30 -exec mv {} ${{ env.REPORT_DIR }}/archive/ \;
+            git add -A
+            git commit -m "📡 daily research: ${DATE}" || echo "nothing to commit"
+            git push
+          fi
+
+      - name: 💬 推送企业微信通知
+        env:
+          WECOM_WEBHOOK_KEY: ${{ secrets.WECOM_WEBHOOK_KEY }}
+        run: |
+          DATE=$(date +%Y-%m-%d)
+          bash scripts/send_wecom.sh "${DATE}" "${WECOM_WEBHOOK_KEY}"

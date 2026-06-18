@@ -1,0 +1,17 @@
+# 本地临时文件
+*.log
+*.tmp
+/tmp/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# 归档报告（保留git历史即可，本地不需要跟踪archive）
+daily_reports/archive/
+
+# OS
+.DS_Store
+Thumbs.db
