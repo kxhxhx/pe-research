@@ -1,80 +1,32 @@
 #!/bin/bash
 # ============================================================
-# 每日研究执行脚本
-# 供 GitHub Actions 调用
+# 每日研究入口脚本
+# 调用 Python 研究脚本
 # ============================================================
 set -euo pipefail
 
 DATE=$(date +%Y-%m-%d)
-REPORT_DIR="daily_reports"
-mkdir -p "${REPORT_DIR}"
+echo "[$(date '+%H:%M:%S')] Starting research for ${DATE}"
 
-echo "[$(date '+%H:%M:%S')] Starting daily research for ${DATE}"
+# 检查 Python3
+if ! command -v python3 &>/dev/null; then
+  echo "Python3 not found, installing..."
+  apt-get update -qq && apt-get install -y -qq python3 2>/dev/null || {
+    echo "Cannot install python3, using minimal report"
+    mkdir -p daily_reports
+    cat > "daily_reports/${DATE}.md" << EOF
+# 电力电子 × 智能体 每日研究
 
-# 安装 OpenCode（如果未安装）
-if ! command -v opencode &>/dev/null; then
-  echo "Installing opencode-ai..."
-  npm install -g opencode-ai
+日期: ${DATE}
+
+Python3 未安装，无法运行研究脚本。
+请检查 GitHub Actions 运行环境。
+EOF
+    exit 0
+  }
 fi
 
-# 用 OpenCode run 模式执行研究
-opencode run -p 'You are a research assistant specializing in power electronics and AI agents.
+# 运行 Python 研究脚本
+python3 scripts/run_research.py
 
-Search for the following topics using available web search tools:
-
-1. ACADEMIC PAPERS: Search arxiv.org / IEEE for:
-   - power electronics + AI agent + LLM
-   - power converter + autonomous design
-   - motor control + reinforcement learning + embedded
-   - SiC/GaN inverter + AI optimization
-   - LLM + SPICE + circuit simulation
-
-2. GITHUB PROJECTS: Search for repos updated in last 7 days:
-   - opencode plugin embedded
-   - power electronics AI agent firmware
-   - motor control LLM code generation
-
-3. TOOLS: Check latest versions of:
-   - oh-my-embedded (npm registry)
-   - Simulink Agentic Toolkit
-   - kicad-mcp
-   - MATLAB MCP Server
-
-4. INDUSTRY: Search MathWorks/ST/TI/Infineon/ABB for AI+power electronics news
-
-Write the results to /tmp/research_report.md in this format:
-
-# Power Electronics x AI Agent Daily Research
-Date: '${DATE}'
-
---- New Papers ---
-Title | Source | Authors | Key Contribution | URL
-
---- Tools ---
-Name | Version | Changes | Link
-
---- GitHub Projects ---
-Repo | Stars | Description | URL
-
---- Industry News ---
-
---- Key Takeaways ---
-
-' 2>&1 | tail -5
-
-echo "[$(date '+%H:%M:%S')] OpenCode finished"
-
-# 检查报告是否生成
-if [ -f /tmp/research_report.md ]; then
-  cp /tmp/research_report.md "${REPORT_DIR}/${DATE}.md"
-  echo "report_generated=true"
-  echo "REPORT_FILE=${REPORT_DIR}/${DATE}.md"
-else
-  echo "OpenCode did not generate report, running fallback..."
-  # 用 LLM_API_KEY 环境变量
-  bash scripts/research_fallback.sh "${DATE}" "${LLM_API_KEY:-}"
-  echo "report_generated=true"
-  echo "REPORT_FILE=${REPORT_DIR}/${DATE}.md"
-fi
-
-echo "[$(date '+%H:%M:%S')] Research complete: ${REPORT_DIR}/${DATE}.md"
+echo "[$(date '+%H:%M:%S')] Done"

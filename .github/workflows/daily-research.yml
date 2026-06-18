@@ -8,20 +8,21 @@ on:
 jobs:
   research:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-python@v5
         with:
-          node-version: '22'
+          python-version: '3.12'
 
       - name: Run research
         id: research
         env:
           LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+          LLM_MODEL: ${{ secrets.LLM_MODEL && secrets.LLM_MODEL || 'deepseek-chat' }}
+          LLM_BASE_URL: ${{ secrets.LLM_BASE_URL && secrets.LLM_BASE_URL || 'https://api.deepseek.com' }}
         run: |
-          chmod +x scripts/run_research.sh
           bash scripts/run_research.sh
 
       - name: Commit report
