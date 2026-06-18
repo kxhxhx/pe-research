@@ -71,23 +71,10 @@ jobs:
               -d '{"msgtype":"text","text":{"content":"PE Research: '${DATE}' failed - no report generated"}}' >/dev/null
             exit 0
           fi
-          # 提取摘要并推送
-          python3 -c "
-import json, os, urllib.request
-report = open('${REPORT_FILE}').read()
-# 提取前2000字符
-summary = report[:2000]
-# 提取 AI Summary 部分（如果有）
-if '## AI Summary' in report:
-    ai_start = report.index('## AI Summary')
-    summary = report[ai_start:ai_start+1500]
-payload = json.dumps({
-    'msgtype': 'markdown',
-    'markdown': {'content': f\"# PE Research {os.environ['DATE']}\n\n{summary}\n\n[Full Report](https://github.com/{os.environ['GITHUB_REPOSITORY']}/blob/main/{os.environ['REPORT_FILE']})\"}}
-})
-req = urllib.request.Request(
-    f\"https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key={os.environ['WECOM_KEY']}\",
-    data=payload.encode(), headers={'Content-Type': 'application/json'}, method='POST')
-urllib.request.urlopen(req, timeout=10)
-print('WeCom sent')
-" 2>/dev/null || echo "WeCom failed"
+          # 推送企业微信：短文本通知 + 报告链接
+          WECOM_URL="https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=${WECOM_KEY}"
+          PAPER_COUNT=$(grep -c '^###' "$REPORT_FILE" 2>/dev/null || echo 0)
+          curl -s -X POST "$WECOM_URL" \
+            -H "Content-Type: application/json" \
+            -d "{\"msgtype\":\"text\",\"text\":{\"content\":\"📡 PE Research ${DATE}\\n\\nPapers: ${PAPER_COUNT}  |  Full Report:\\nhttps://github.com/${GITHUB_REPOSITORY}/blob/main/${REPORT_FILE}\"}}" \
+            >/dev/null 2>&1 && echo "WeCom OK" || echo "WeCom fail"
