@@ -5,12 +5,17 @@ on:
     - cron: '0 1 * * *'
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   research:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
 
       - uses: actions/setup-python@v5
         with:
@@ -41,6 +46,7 @@ jobs:
           if [ -f "daily_reports/${DATE}.md" ]; then
             git add daily_reports/
             git commit -m "daily research: ${DATE}" || true
+            git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}"
             git push
           fi
 
