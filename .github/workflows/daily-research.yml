@@ -4,6 +4,8 @@ on:
   schedule:
     - cron: '30 2 * * *'
   workflow_dispatch:
+  repository_dispatch:
+    types: [daily_research]
 
 permissions:
   contents: write
