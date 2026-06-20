@@ -7,7 +7,7 @@ import json, os, sys, urllib.request, urllib.error
 from datetime import date
 from xml.etree import ElementTree
 
-today = str(date.today())
+today = sys.argv[1] if len(sys.argv) > 1 else str(date.today())
 REPORT_DIR = "daily_reports"
 api_key = os.environ.get("LLM_API_KEY", "")
 os.makedirs(REPORT_DIR, exist_ok=True)
